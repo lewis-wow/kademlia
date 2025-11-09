@@ -1,7 +1,7 @@
 import { ServerType } from '@hono/node-server';
 import { Node } from './Node.js';
 import repl from 'node:repl';
-import { createContactFromAddress } from './utils.js';
+import { createContactFromAddress, sha1 } from './utils.js';
 import { render } from 'prettyjson';
 
 export class Repl {
@@ -43,12 +43,12 @@ export class Repl {
     void this.node.iterativeFindNode(targetId);
   }
 
-  private _store(key: string, value: string): void {
-    void this.node.iterativeStore(key, value);
+  private _store(key: string | number, value: string): void {
+    void this.node.iterativeStore(sha1(key.toString()), value);
   }
 
-  private _get(key: string): void {
-    void this.node.iterativeFindValue(key);
+  private _get(key: string | number): void {
+    void this.node.iterativeFindValue(sha1(key.toString()));
   }
 
   private _bootstrap(address: string): void {
@@ -59,13 +59,15 @@ export class Repl {
     void this.node.ping(createContactFromAddress(address));
   }
 
-  private _storage(key?: string): void {
+  private _storage(key?: string | number): void {
     if (key === undefined) {
-      console.log(render({ storage: this.node.storage.entries() }));
+      console.log(render({ storage: Object.fromEntries(this.node.storage) }));
       return;
     }
 
-    console.log(render({ [key]: this.node.storage.get(key) ?? null }));
+    console.log(
+      render({ [key]: this.node.storage.get(sha1(key.toString())) ?? null }),
+    );
   }
 
   private _clear(): void {
