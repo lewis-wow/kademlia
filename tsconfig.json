@@ -1,10 +1,9 @@
 {
   "compilerOptions": {
     "target": "es2022",
-    "module": "node16",
-    "lib": ["ES2022", "DOM"],
-    "moduleResolution": "node16",
-    "rootDir": ".",
+    "module": "nodenext",
+    "lib": ["ES2022"],
+    "moduleResolution": "nodenext",
     "outDir": "build",
     "allowSyntheticDefaultImports": true,
     "importHelpers": true,
@@ -16,9 +15,8 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "strict": true,
-    "noImplicitAny": false,
-    "noImplicitThis": false,
-    "strictNullChecks": true,
+    "skipLibCheck": true
   },
-  "include": ["src", "__tests__"]
+  "include": ["src", "__tests__"],
+  "exclude": ["node_modules"]
 }
