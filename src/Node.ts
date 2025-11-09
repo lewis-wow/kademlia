@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { RoutingTable } from './RoutingTable.js';
 import { Contact, RpcPayload } from './types.js';
 import { serve } from '@hono/node-server';
+import { ALPHA, K_BUCKET_SIZE } from './consts.js';
+import { Shortlist } from './Shortlist.js';
 
 export type PingPayload = RpcPayload;
 
@@ -198,5 +200,164 @@ export class Node {
     );
 
     return response;
+  }
+
+  public async iterativeFindNode(targetId: string): Promise<Contact[]> {
+    console.log(`[Lookup] ${targetId}`);
+
+    const shortlist = new Shortlist({ targetId, self: this.self });
+    const initialContacts = this.routingTable.findClosest(
+      targetId,
+      K_BUCKET_SIZE,
+    );
+    shortlist.addMany(initialContacts);
+
+    let loop = 0; // Loop protection
+    while (loop++ < 20) {
+      // 2. Get ALPHA closest, unqueried nodes from the shortlist
+      const nodesToQuery = shortlist.getNodesToQuery(ALPHA);
+
+      // 3. Stop condition: No one left to ask
+      if (nodesToQuery.length === 0) {
+        break;
+      }
+
+      // 4. Mark them as queried
+      nodesToQuery.forEach((contact) => shortlist.markAsQueried(contact));
+
+      // 5. Send RPCs in parallel
+      const rpcPromises = nodesToQuery.map((contact) =>
+        this.findNode(contact, targetId),
+      );
+
+      const responses = await Promise.allSettled(rpcPromises);
+      let newNodesFound = false;
+
+      // 6. Process responses
+      for (const res of responses) {
+        if (res.status === 'fulfilled' && res.value) {
+          const newContacts: Contact[] = res.value;
+          // addMany returns true if any new nodes were actually added
+          if (shortlist.addMany(newContacts)) {
+            newNodesFound = true;
+          }
+        }
+      }
+
+      // 7. Stop condition: Convergence
+      // (We queried nodes but didn't find anyone new/closer)
+      if (!newNodesFound) {
+        break;
+      }
+    }
+
+    // 8. Loop finished, return the K-closest from the list
+    const finalNodes = shortlist.getFinalResults(K_BUCKET_SIZE);
+    console.log(`[Lookup] found ${finalNodes.length} nodes.`);
+    return finalNodes;
+  }
+
+  public async iterativeStore(key: string, value: string): Promise<void> {
+    console.log(`[Store] Running iterativeStore for key: ${key}`);
+
+    // 1. Find the k-closest nodes
+    const closestNodes = await this.iterativeFindNode(key);
+
+    if (closestNodes.length === 0) {
+      console.warn(`[Store] Found no nodes to store data on for key ${key}.`);
+      return;
+    }
+
+    console.log(`[Store] Storing value on ${closestNodes.length} nodes...`);
+
+    // 2. Send a STORE command to all of them
+    const storePromises = closestNodes.map((contact) =>
+      this.store(contact, key, value),
+    );
+
+    await Promise.allSettled(storePromises);
+    console.log(
+      `[Store] iterativeStore finished for key ${key.substring(0, 10)}.`,
+    );
+  }
+
+  public async iterativeFindValue(
+    key: string,
+  ): Promise<{ value: string | null; nodes: Contact[] }> {
+    console.log(`[Lookup] Running iterativeFindValue for key: ${key}.`);
+
+    // 1. Initialize the Shortlist
+    const shortlist = new Shortlist({ targetId: key, self: this.self });
+    const initialContacts = this.routingTable.findClosest(key, K_BUCKET_SIZE);
+    shortlist.addMany(initialContacts);
+
+    let loop = 0;
+    while (loop++ < 20) {
+      // 2. Get nodes to query
+      const nodesToQuery = shortlist.getNodesToQuery(ALPHA);
+
+      // 3. Stop condition: No one left
+      if (nodesToQuery.length === 0) {
+        break;
+      }
+
+      // 4. Mark as queried
+      nodesToQuery.forEach((contact) => shortlist.markAsQueried(contact));
+
+      // 5. Send RPCs in parallel (this time, findValue)
+      const rpcPromises = nodesToQuery.map((contact) =>
+        this.findValue(contact, key),
+      );
+
+      const responses = await Promise.allSettled(rpcPromises);
+      let newNodesFound = false;
+
+      // 6. Process responses
+      for (const res of responses) {
+        if (res.status === 'fulfilled' && res.value) {
+          const response: FindValueResponse | null = res.value;
+
+          // 6a. SUCCESS: We found the value!
+          if (response?.found) {
+            console.log(`[Lookup] iterativeFindValue found the value!`);
+            return { value: response.value, nodes: [] };
+          }
+
+          // 6b. We didn't find the value, but got new nodes
+          if (response?.found === false) {
+            if (shortlist.addMany(response.nodes)) {
+              newNodesFound = true;
+            }
+          }
+          // (If response is null, the request failed, we just ignore it)
+        }
+      }
+
+      // 7. Stop condition: Convergence
+      if (!newNodesFound) {
+        break;
+      }
+    }
+
+    // 8. Loop finished without finding the value.
+    console.log(
+      `[Lookup] iterativeFindValue did not find value. Returning closest nodes.`,
+    );
+    const finalNodes = shortlist.getFinalResults(K_BUCKET_SIZE);
+    return { value: null, nodes: finalNodes };
+  }
+
+  public async bootstrap(bootstrapContact: Contact): Promise<void> {
+    if (bootstrapContact.nodeId === this.self.nodeId) {
+      console.warn('[Bootstrap] Cannot bootstrap against self contact.');
+      return;
+    }
+
+    console.log(`[Bootstrap] against ${JSON.stringify(bootstrapContact)}.`);
+    this.routingTable.addContact(bootstrapContact);
+
+    // Self lookup
+    // This way we fill our k-buckets and notify our presence in network.
+    await this.iterativeFindNode(this.self.nodeId);
   }
 }
