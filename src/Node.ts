@@ -4,6 +4,7 @@ import { Contact, RpcPayload } from './types.js';
 import { serve } from '@hono/node-server';
 import { ALPHA, K_BUCKET_SIZE } from './consts.js';
 import { Shortlist } from './Shortlist.js';
+import { render } from 'prettyjson';
 
 export type PingPayload = RpcPayload;
 
@@ -30,6 +31,10 @@ export class Node {
   private readonly routingTable: RoutingTable;
   private readonly storage = new Map<string, string>();
 
+  private _log(prefix: string, obj: object): void {
+    console.log(render({ [prefix]: obj }));
+  }
+
   constructor(opts: { self: Contact }) {
     this.self = opts.self;
 
@@ -39,7 +44,7 @@ export class Node {
       const { senderContact } = await ctx.req.json<PingPayload>();
 
       this.routingTable.addContact(senderContact);
-      console.log(`Ping from ${JSON.stringify(senderContact)}`);
+      this._log('Ping', { senderContact });
 
       // Return self contact so the sender can store this node to his routing table
       return ctx.json(this.self);
@@ -49,7 +54,7 @@ export class Node {
       const { senderContact, key, value } = await ctx.req.json<StorePayload>();
 
       this.routingTable.addContact(senderContact);
-      console.log(`Store from ${JSON.stringify(senderContact)}`);
+      this._log('Store', { senderContact, key, value });
 
       this.storage.set(key, value);
 
@@ -60,7 +65,7 @@ export class Node {
       const { senderContact, targetId } = await ctx.req.json<FindNodePayload>();
 
       this.routingTable.addContact(senderContact);
-      console.log(`Find node from ${JSON.stringify(senderContact)}`);
+      this._log('Find node', { senderContact, targetId });
 
       const closest = this.routingTable.findClosest(targetId);
 
@@ -71,7 +76,7 @@ export class Node {
       const { senderContact, key } = await ctx.req.json<FindValuePayload>();
 
       this.routingTable.addContact(senderContact);
-      console.log(`Find value from ${JSON.stringify(senderContact)}`);
+      this._log('Find value', { senderContact, key });
 
       if (this.storage.has(key)) {
         const value = this.storage.get(key)!;
@@ -96,11 +101,15 @@ export class Node {
       serve(
         {
           fetch: this.app.fetch,
-          hostname: this.self.ipAddress,
+          hostname: this.self.ip,
           port: this.self.port,
         },
         () => {
-          console.log(`Node ${JSON.stringify(this.self)} listening.`);
+          this._log('Listen', {
+            self: this.self,
+            address: `${this.self.ip}:${this.self.port}`,
+          });
+
           resolve();
         },
       );
@@ -112,7 +121,7 @@ export class Node {
     endpoint: string,
     body: object,
   ): Promise<T | null> {
-    const url = `http://${contact.ipAddress}:${contact.port}${endpoint}`;
+    const url = `http://${contact.ip}:${contact.port}${endpoint}`;
     try {
       const response = await fetch(url, {
         method: 'POST',
@@ -203,7 +212,7 @@ export class Node {
   }
 
   public async iterativeFindNode(targetId: string): Promise<Contact[]> {
-    console.log(`[Lookup] ${targetId}`);
+    this._log('IterativeFindNode', { targetId });
 
     const shortlist = new Shortlist({ targetId, self: this.self });
     const initialContacts = this.routingTable.findClosest(
@@ -253,12 +262,16 @@ export class Node {
 
     // 8. Loop finished, return the K-closest from the list
     const finalNodes = shortlist.getFinalResults(K_BUCKET_SIZE);
-    console.log(`[Lookup] found ${finalNodes.length} nodes.`);
+    this._log('IterativeFindNode', {
+      nodesCount: finalNodes.length,
+      status: 'found',
+    });
+
     return finalNodes;
   }
 
   public async iterativeStore(key: string, value: string): Promise<void> {
-    console.log(`[Store] Running iterativeStore for key: ${key}`);
+    this._log('IterativeStore', { key });
 
     // 1. Find the k-closest nodes
     const closestNodes = await this.iterativeFindNode(key);
@@ -268,7 +281,10 @@ export class Node {
       return;
     }
 
-    console.log(`[Store] Storing value on ${closestNodes.length} nodes...`);
+    this._log('IterativeStore', {
+      nodesCount: closestNodes.length,
+      status: 'storing',
+    });
 
     // 2. Send a STORE command to all of them
     const storePromises = closestNodes.map((contact) =>
@@ -276,15 +292,14 @@ export class Node {
     );
 
     await Promise.allSettled(storePromises);
-    console.log(
-      `[Store] iterativeStore finished for key ${key.substring(0, 10)}.`,
-    );
+
+    this._log('IterativeStore', { key, status: 'finished' });
   }
 
   public async iterativeFindValue(
     key: string,
   ): Promise<{ value: string | null; nodes: Contact[] }> {
-    console.log(`[Lookup] Running iterativeFindValue for key: ${key}.`);
+    this._log('IterativeFindValue', { key });
 
     // 1. Initialize the Shortlist
     const shortlist = new Shortlist({ targetId: key, self: this.self });
@@ -319,7 +334,12 @@ export class Node {
 
           // 6a. SUCCESS: We found the value!
           if (response?.found) {
-            console.log(`[Lookup] iterativeFindValue found the value!`);
+            this._log('IterativeFindValue', {
+              key,
+              value: response.value,
+              status: 'found',
+            });
+
             return { value: response.value, nodes: [] };
           }
 
@@ -340,20 +360,25 @@ export class Node {
     }
 
     // 8. Loop finished without finding the value.
-    console.log(
-      `[Lookup] iterativeFindValue did not find value. Returning closest nodes.`,
-    );
+    this._log('IterativeFindValue', {
+      key,
+      status: 'not found',
+    });
+
     const finalNodes = shortlist.getFinalResults(K_BUCKET_SIZE);
     return { value: null, nodes: finalNodes };
   }
 
   public async bootstrap(bootstrapContact: Contact): Promise<void> {
     if (bootstrapContact.nodeId === this.self.nodeId) {
-      console.warn('[Bootstrap] Cannot bootstrap against self contact.');
+      console.warn('Cannot bootstrap against self contact.');
       return;
     }
 
-    console.log(`[Bootstrap] against ${JSON.stringify(bootstrapContact)}.`);
+    this._log('Bootstrap', {
+      bootstrap: bootstrapContact,
+    });
+
     this.routingTable.addContact(bootstrapContact);
 
     // Self lookup

@@ -2,7 +2,7 @@ export type NodeId = string;
 
 export type Contact = {
   nodeId: NodeId;
-  ipAddress: string;
+  ip: string;
   port: number;
   lastSeenTimestamp?: Date;
 };

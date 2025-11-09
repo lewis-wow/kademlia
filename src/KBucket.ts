@@ -25,7 +25,7 @@ export class KBucket {
     // The least-recently seen contact (this.contacts[0]) would be pinged.
     // If it responds, the new contact is ignored. If it doesn't respond, it's removed,
     // and the new contact is added.
-    console.log('Bucket is full, ignoring new contact.');
+    console.warn('Bucket is full, ignoring new contact.');
   }
 
   getContacts(): Contact[] {

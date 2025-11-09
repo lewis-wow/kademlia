@@ -1,41 +1,42 @@
 #!/usr/bin/env tsx
 import { Node } from './Node.js';
-import { Contact } from './types.js';
-import { sha1 } from './utils.js';
+import { createContactFromAddress } from './utils.js';
 import getPort from 'get-port';
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
 
-const selfRawId = process.argv[2];
-const bootstrapArg = process.argv[3];
+const SCRIPT_NAME = 'kademlia-node';
 
-const self: Contact = {
-  nodeId: sha1(selfRawId),
-  ipAddress: '127.0.0.1',
-  port: await getPort(),
-};
+const argv = await yargs(hideBin(process.argv))
+  .scriptName(SCRIPT_NAME)
+  .option('bootstrap', {
+    alias: 'b',
+    describe: 'Optional bootstrap node contact (format: id:ip:port|ip:port)',
+    type: 'string',
+  })
+  .option('ip', {
+    describe: 'The IP address for this node to listen on',
+    type: 'string',
+    default: '127.0.0.1',
+  })
+  .option('port', {
+    alias: 'p',
+    describe:
+      'The port for this node. If not specified, a random available port is used.',
+    type: 'number',
+  })
+  .help()
+  .alias('help', 'h').argv;
 
-console.log(`[INIT] Creating node...`);
-console.log(`raw ID: ${selfRawId}`);
-console.log(`Address: http://${self.ipAddress}:${self.port}`);
+const self = createContactFromAddress({
+  ip: argv.ip,
+  port: argv.port ?? (await getPort()),
+});
 
 const node = new Node({ self });
 await node.listen();
 
-if (bootstrapArg) {
-  const [rawNodeId, ipAddress = '127.0.0.1', portStr = '50822'] =
-    bootstrapArg.split(':');
-
-  if (!rawNodeId || !ipAddress || !portStr) {
-    console.error('Invalid bootstrap argument format.');
-    process.exit(1);
-  }
-
-  const bootstrapContact: Contact = {
-    nodeId: sha1(rawNodeId),
-    ipAddress,
-    port: Number.parseInt(portStr),
-  };
-
-  console.log(`[INIT] Bootstrap against ${JSON.stringify(bootstrapContact)}`);
-
-  await node.bootstrap(bootstrapContact);
+if (argv.bootstrap) {
+  const bootstrap = createContactFromAddress(argv.bootstrap);
+  await node.bootstrap(bootstrap);
 }
