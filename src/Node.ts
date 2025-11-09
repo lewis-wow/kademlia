@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { RoutingTable } from './RoutingTable.js';
 import { Contact, RpcPayload } from './types.js';
-import { serve } from '@hono/node-server';
+import { serve, ServerType } from '@hono/node-server';
 import { ALPHA, K_BUCKET_SIZE } from './consts.js';
 import { Shortlist } from './Shortlist.js';
 import { render } from 'prettyjson';
@@ -96,9 +96,9 @@ export class Node {
     });
   }
 
-  listen(): Promise<void> {
-    return new Promise<void>((resolve) => {
-      serve(
+  listen(): Promise<ServerType> {
+    return new Promise<ServerType>((resolve) => {
+      const server = serve(
         {
           fetch: this.app.fetch,
           hostname: this.self.ip,
@@ -110,7 +110,7 @@ export class Node {
             address: `${this.self.ip}:${this.self.port}`,
           });
 
-          resolve();
+          resolve(server);
         },
       );
     });

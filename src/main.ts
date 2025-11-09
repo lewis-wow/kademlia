@@ -4,6 +4,7 @@ import { createContactFromAddress } from './utils.js';
 import getPort from 'get-port';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import { Repl } from './Repl.js';
 
 const SCRIPT_NAME = 'kademlia-node';
 
@@ -34,9 +35,11 @@ const self = createContactFromAddress({
 });
 
 const node = new Node({ self });
-await node.listen();
 
 if (argv.bootstrap) {
   const bootstrap = createContactFromAddress(argv.bootstrap);
   await node.bootstrap(bootstrap);
 }
+
+const repl = new Repl({ node });
+repl.start();
