@@ -10,11 +10,6 @@ const SCRIPT_NAME = 'kademlia-node';
 
 const argv = await yargs(hideBin(process.argv))
   .scriptName(SCRIPT_NAME)
-  .option('bootstrap', {
-    alias: 'b',
-    describe: 'Optional bootstrap node contact (format: id:ip:port|ip:port)',
-    type: 'string',
-  })
   .option('ip', {
     describe: 'The IP address for this node to listen on',
     type: 'string',
@@ -35,11 +30,5 @@ const self = createContactFromAddress({
 });
 
 const node = new Node({ self });
-
-if (argv.bootstrap) {
-  const bootstrap = createContactFromAddress(argv.bootstrap);
-  await node.bootstrap(bootstrap);
-}
-
 const repl = new Repl({ node });
 repl.start();

@@ -27,9 +27,9 @@ export type FindValueResponse =
 
 export class Node {
   private readonly app = new Hono();
-  private readonly self: Contact;
+  readonly self: Contact;
   private readonly routingTable: RoutingTable;
-  private readonly storage = new Map<string, string>();
+  readonly storage = new Map<string, string>();
 
   private _log(prefix: string, obj: object): void {
     console.log(render({ [prefix]: obj }));

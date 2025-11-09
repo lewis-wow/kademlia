@@ -1,6 +1,8 @@
 import { ServerType } from '@hono/node-server';
 import { Node } from './Node.js';
 import repl from 'node:repl';
+import { createContactFromAddress } from './utils.js';
+import { render } from 'prettyjson';
 
 export class Repl {
   private readonly node: Node;
@@ -13,7 +15,7 @@ export class Repl {
   start(): void {
     const replServer = repl.start({
       ignoreUndefined: true,
-      prompt: 'kademlia-node> ',
+      prompt: `kademlia-node ${this.node.self.ip}:${this.node.self.port}> `,
     });
 
     replServer.context.start = this._start.bind(this);
@@ -21,6 +23,10 @@ export class Repl {
     replServer.context.lookup = this._lookup.bind(this);
     replServer.context.store = this._store.bind(this);
     replServer.context.get = this._get.bind(this);
+    replServer.context.bootstrap = this._bootstrap.bind(this);
+    replServer.context.ping = this._ping.bind(this);
+    replServer.context.storage = this._storage.bind(this);
+    replServer.context.clear = this._clear.bind(this);
   }
 
   private _start(): void {
@@ -43,5 +49,26 @@ export class Repl {
 
   private _get(key: string): void {
     void this.node.iterativeFindValue(key);
+  }
+
+  private _bootstrap(address: string): void {
+    void this.node.bootstrap(createContactFromAddress(address));
+  }
+
+  private _ping(address: string): void {
+    void this.node.ping(createContactFromAddress(address));
+  }
+
+  private _storage(key?: string): void {
+    if (key === undefined) {
+      console.log(render({ storage: this.node.storage.entries() }));
+      return;
+    }
+
+    console.log(render({ [key]: this.node.storage.get(key) ?? null }));
+  }
+
+  private _clear(): void {
+    console.clear();
   }
 }
