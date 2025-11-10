@@ -114,12 +114,14 @@ export class Node {
           port: this.self.port,
         },
         () => {
+          this.storage.start();
+          this.httpServer = server;
+
           this._debug('Listen', {
             self: this.self,
             address: `${this.self.ip}:${this.self.port}`,
           });
 
-          this.httpServer = server;
           resolve(server);
         },
       );
