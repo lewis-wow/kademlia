@@ -1,4 +1,3 @@
-import { ServerType } from '@hono/node-server';
 import { Node } from './Node.js';
 import repl from 'node:repl';
 import { createContactFromAddress, sha1 } from './utils.js';
@@ -6,7 +5,6 @@ import { render } from 'prettyjson';
 
 export class Repl {
   private readonly node: Node;
-  private nodeServer?: ServerType;
 
   constructor(opts: { node: Node }) {
     this.node = opts.node;
@@ -37,9 +35,7 @@ export class Repl {
   }
 
   private _start(): void {
-    this.node.listen().then((nodeServer) => {
-      this.nodeServer = nodeServer;
-
+    this.node.listen().then(() => {
       this._log('Listen', {
         self: this.node.self,
         address: `${this.node.self.ip}:${this.node.self.port}`,
@@ -48,7 +44,7 @@ export class Repl {
   }
 
   private _stop(): void {
-    this.nodeServer?.close();
+    this.node.shutdown();
 
     this._log('Stop', {
       self: this.node.self,
@@ -65,18 +61,13 @@ export class Repl {
   }
 
   private _forceRepublish(): void {
-    const storage = Object.fromEntries(this.node.storage);
-    for (const [key, value] of Object.entries(storage)) {
-      this.node.iterativeStore(key, value);
-    }
-
-    this._log('Force republish', storage);
+    this.node.storage.forceRepublish().then(() => {
+      this._log('Force republish', { status: 'complete' });
+    });
   }
 
   private _store(key: string | number, value: string): void {
     const hexKey = sha1(key.toString());
-
-    this.node.storage.set(hexKey, value);
 
     this.node.iterativeStore(hexKey, value).then(() => {
       this._log('Store', {
@@ -89,13 +80,13 @@ export class Repl {
   private _get(key: string | number): void {
     const hexKey = sha1(key.toString());
 
-    if (this.node.storage.has(hexKey)) {
-      const value = this.node.storage.get(hexKey)!;
+    const localValue = this.node.storage.get(hexKey);
+    if (localValue !== null) {
       this._log('Get', {
         local: true,
         keyHash: hexKey,
         key,
-        value,
+        value: localValue,
       });
 
       return;
@@ -142,13 +133,16 @@ export class Repl {
 
   private _storage(key?: string | number): void {
     if (key === undefined) {
-      this._log('Storage', Object.fromEntries(this.node.storage));
+      this._log('Storage', {
+        original: this.node.storage.getOriginalContents(),
+        replica: this.node.storage.getReplicaContents(),
+      });
       return;
     }
 
     const hexKey = sha1(key.toString());
 
-    this._log('Storage', {
+    this._log('Storage (Replica)', {
       [key]: this.node.storage.get(hexKey) ?? null,
     });
   }

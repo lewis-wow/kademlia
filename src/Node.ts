@@ -28,6 +28,7 @@ export type FindValueResponse =
 
 export class Node {
   private readonly app = new Hono();
+  httpServer?: ServerType;
   readonly self: Contact;
   readonly routingTable: RoutingTable;
   readonly storage: Storage;
@@ -118,10 +119,18 @@ export class Node {
             address: `${this.self.ip}:${this.self.port}`,
           });
 
+          this.httpServer = server;
           resolve(server);
         },
       );
     });
+  }
+
+  public shutdown(): void {
+    this.storage.stop();
+    this.httpServer?.close();
+
+    this._debug('Shutdown', { status: 'complete' });
   }
 
   private async _sendRequest<T>(

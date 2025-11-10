@@ -67,6 +67,18 @@ export class Storage {
     }
   }
 
+  public async forceRepublish(): Promise<void> {
+    await this._republishData();
+  }
+
+  public getReplicaContents(): object {
+    return Object.fromEntries(this.replicaStorage);
+  }
+
+  public getOriginalContents(): object {
+    return Object.fromEntries(this.originalStorage);
+  }
+
   private async _republishData(): Promise<void> {
     const keyCount = this.originalStorage.size;
     if (keyCount === 0) {
