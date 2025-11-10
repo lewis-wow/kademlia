@@ -30,6 +30,9 @@ export class Repl {
     replServer.context.bootstrap = this._bootstrap.bind(this);
     replServer.context.ping = this._ping.bind(this);
     replServer.context.storage = this._storage.bind(this);
+    replServer.context.contacts = this._contacts.bind(this);
+    replServer.context.forceRepublish = this._forceRepublish.bind(this);
+
     replServer.context.clear = this._clear.bind(this);
   }
 
@@ -61,6 +64,15 @@ export class Repl {
     });
   }
 
+  private _forceRepublish(): void {
+    const storage = Object.fromEntries(this.node.storage);
+    for (const [key, value] of Object.entries(storage)) {
+      this.node.iterativeStore(key, value);
+    }
+
+    this._log('Force republish', storage);
+  }
+
   private _store(key: string | number, value: string): void {
     const hexKey = sha1(key.toString());
 
@@ -80,6 +92,8 @@ export class Repl {
     if (this.node.storage.has(hexKey)) {
       const value = this.node.storage.get(hexKey)!;
       this._log('Get', {
+        local: true,
+        keyHash: hexKey,
         key,
         value,
       });
@@ -89,6 +103,8 @@ export class Repl {
 
     this.node.iterativeFindValue(hexKey).then(({ value }) => {
       this._log('Get', {
+        local: false,
+        keyHash: hexKey,
         key,
         value,
       });
@@ -102,6 +118,14 @@ export class Repl {
       this._log('Bootstrap', {
         contact,
       });
+    });
+  }
+
+  private _contacts(): void {
+    const contacts = this.node.routingTable.getAllContacts();
+
+    this._log('Contacts', {
+      contacts,
     });
   }
 

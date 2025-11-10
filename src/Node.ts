@@ -5,6 +5,7 @@ import { serve, ServerType } from '@hono/node-server';
 import { ALPHA, K_BUCKET_SIZE } from './consts.js';
 import { Shortlist } from './Shortlist.js';
 import { render } from 'prettyjson';
+import { Storage } from './Storage.js';
 
 export type PingPayload = RpcPayload;
 
@@ -28,8 +29,8 @@ export type FindValueResponse =
 export class Node {
   private readonly app = new Hono();
   readonly self: Contact;
-  private readonly routingTable: RoutingTable;
-  readonly storage = new Map<string, string>();
+  readonly routingTable: RoutingTable;
+  readonly storage: Storage;
 
   private _debug(prefix: string, obj: object): void {
     if (process.env.DEBUG) {
@@ -41,6 +42,10 @@ export class Node {
     this.self = opts.self;
 
     this.routingTable = new RoutingTable({ self: this.self });
+
+    this.storage = new Storage({
+      republishCallback: this._doIterativeStore.bind(this),
+    });
 
     this.app.post('/ping', async (ctx) => {
       const { senderContact } = await ctx.req.json<PingPayload>();
@@ -58,7 +63,7 @@ export class Node {
       this.routingTable.addContact(senderContact);
       this._debug('Store', { senderContact, key, value });
 
-      this.storage.set(key, value);
+      this.storage.setReplica(key, value);
 
       return ctx.json({ ok: true });
     });
@@ -80,7 +85,8 @@ export class Node {
       this.routingTable.addContact(senderContact);
       this._debug('Find value', { senderContact, key });
 
-      if (this.storage.has(key)) {
+      const value = this.storage.get(key);
+      if (value === null) {
         const value = this.storage.get(key)!;
 
         return ctx.json<FindValueResponse>({
@@ -272,9 +278,7 @@ export class Node {
     return finalNodes;
   }
 
-  public async iterativeStore(key: string, value: string): Promise<void> {
-    this._debug('IterativeStore', { key });
-
+  private async _doIterativeStore(key: string, value: string): Promise<void> {
     // 1. Find the k-closest nodes
     const closestNodes = await this.iterativeFindNode(key);
 
@@ -296,6 +300,17 @@ export class Node {
     );
 
     await Promise.allSettled(storePromises);
+  }
+
+  public async iterativeStore(key: string, value: string): Promise<void> {
+    this._debug('IterativeStore', { key, publisher: 'self' });
+
+    // Tell the storage module this is "original" data
+    // This will save it to originalStorage AND replicaStorage
+    this.storage.setOriginal(key, value);
+
+    // Run the network logic
+    await this._doIterativeStore(key, value);
 
     this._debug('IterativeStore', { key, status: 'finished' });
   }
@@ -309,6 +324,8 @@ export class Node {
     const shortlist = new Shortlist({ targetId: key, self: this.self });
     const initialContacts = this.routingTable.findClosest(key, K_BUCKET_SIZE);
     shortlist.addMany(initialContacts);
+
+    this._debug('IterativeFindValue', { initialContacts });
 
     let loop = 0;
     while (loop++ < 20) {

@@ -11,17 +11,14 @@ export const xorDistance = (nodeIdA: string, nodeIdB: string): bigint => {
   return distance;
 };
 
-export const trimHexToLastBits = (hexString: string, n: number): string => {
-  const num = BigInt('0x' + hexString.replace(/^0x/, ''));
-  const mask = (1n << BigInt(n)) - 1n;
+export const sha1 = (value: string): string => {
+  const hash = createHash('sha1').update(value).digest('hex');
+  const bigIntHash = BigInt(`0x${hash}`);
 
-  const trimmedNum = num & mask;
+  const result = bigIntHash % BigInt(ID_BITS);
 
-  return trimmedNum.toString(16);
+  return result.toString(16);
 };
-
-export const sha1 = (value: string): string =>
-  trimHexToLastBits(createHash('sha1').update(value).digest('hex'), ID_BITS);
 
 export const createContactFromAddress = (
   address: string | { ip: string; port: number },

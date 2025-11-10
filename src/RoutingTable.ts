@@ -39,17 +39,14 @@ export class RoutingTable {
 
   addContact(contact: Contact): void {
     if (contact.nodeId === this.self.nodeId) {
+      console.warn('Cannot add self to routing table.');
       return; // Do not add self
     }
 
     const index = this._getBucketIndex(contact);
 
     if (index < 0 || index > ID_BITS) {
-      return;
-    }
-
-    // do not add contact if already exists
-    if (this.buckets[index].hasContact(contact.nodeId)) {
+      console.warn(`Contact index (${index}) is out of allowed indexes.`);
       return;
     }
 
