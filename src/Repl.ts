@@ -36,15 +36,29 @@ export class Repl {
   private _start(): void {
     this.node.listen().then((nodeServer) => {
       this.nodeServer = nodeServer;
+
+      this._log('Listen', {
+        self: this.node.self,
+        address: `${this.node.self.ip}:${this.node.self.port}`,
+      });
     });
   }
 
   private _stop(): void {
     this.nodeServer?.close();
+
+    this._log('Stop', {
+      self: this.node.self,
+      address: `${this.node.self.ip}:${this.node.self.port}`,
+    });
   }
 
   private _lookup(targetId: string): void {
-    void this.node.iterativeFindNode(targetId);
+    this.node.iterativeFindNode(targetId).then((contacts) => {
+      this._log('Find node', {
+        contacts,
+      });
+    });
   }
 
   private _store(key: string | number, value: string): void {
