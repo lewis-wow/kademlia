@@ -4,7 +4,6 @@ export type Contact = {
   nodeId: NodeId;
   ip: string;
   port: number;
-  lastSeenTimestamp?: Date;
 };
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type

@@ -11,8 +11,8 @@ export const xorDistance = (nodeIdA: string, nodeIdB: string): bigint => {
   return distance;
 };
 
-export const sha1 = (value: string): string => {
-  const hash = createHash('sha1').update(value).digest('hex');
+export const hash = (value: string): string => {
+  const hash = createHash('sha256').update(value).digest('hex');
   const bigIntHash = BigInt(`0x${hash}`);
 
   const result = bigIntHash % BigInt(ID_BITS);
@@ -35,7 +35,7 @@ export const createContactFromAddress = (
     port = address.port;
   }
 
-  const nodeId = sha1(`${ip}:${port}`);
+  const nodeId = hash(`${ip}:${port}`);
 
   return {
     nodeId,

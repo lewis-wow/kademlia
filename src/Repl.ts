@@ -1,6 +1,6 @@
 import { Node } from './Node.js';
 import repl from 'node:repl';
-import { createContactFromAddress, sha1 } from './utils.js';
+import { createContactFromAddress, hash } from './utils.js';
 import { render } from 'prettyjson';
 
 export class Repl {
@@ -67,7 +67,7 @@ export class Repl {
   }
 
   private _store(key: string | number, value: string): void {
-    const hexKey = sha1(key.toString());
+    const hexKey = hash(key.toString());
 
     this.node.iterativeStore(hexKey, value).then(() => {
       this._log('Store', {
@@ -78,7 +78,7 @@ export class Repl {
   }
 
   private _get(key: string | number): void {
-    const hexKey = sha1(key.toString());
+    const hexKey = hash(key.toString());
 
     const localValue = this.node.storage.get(hexKey);
     if (localValue !== null) {
@@ -140,7 +140,7 @@ export class Repl {
       return;
     }
 
-    const hexKey = sha1(key.toString());
+    const hexKey = hash(key.toString());
 
     this._log('Storage (Replica)', {
       [key]: this.node.storage.get(hexKey) ?? null,
