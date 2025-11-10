@@ -1,7 +1,7 @@
-import { Node } from './Node.js';
+import type { Node } from './lib/Node.js';
 import repl from 'node:repl';
-import { createContactFromAddress, hash } from './utils.js';
 import { render } from 'prettyjson';
+import { createContactFromAddress, hash } from './utils.js';
 
 export class Repl {
   private readonly node: Node;
@@ -123,7 +123,7 @@ export class Repl {
   private _ping(address: string): void {
     const contact = createContactFromAddress(address);
 
-    this.node.ping(createContactFromAddress(address)).then((value) => {
+    this.node.ping(contact).then((value) => {
       this._log('Ping', {
         contact,
         pong: value,

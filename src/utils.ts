@@ -1,15 +1,6 @@
 import { createHash } from 'node:crypto';
-import { Contact } from './types.js';
+import type { Contact } from './lib/types.js';
 import { ID_BITS } from './consts.js';
-
-export const xorDistance = (nodeIdA: string, nodeIdB: string): bigint => {
-  const selfBigInt = BigInt('0x' + nodeIdA);
-  const contactBigInt = BigInt('0x' + nodeIdB);
-
-  const distance = selfBigInt ^ contactBigInt;
-
-  return distance;
-};
 
 export const hash = (value: string): string => {
   const hash = createHash('sha256').update(value).digest('hex');

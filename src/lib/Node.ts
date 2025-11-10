@@ -2,7 +2,6 @@ import { Hono } from 'hono';
 import { RoutingTable } from './RoutingTable.js';
 import { Contact, RpcPayload } from './types.js';
 import { serve, ServerType } from '@hono/node-server';
-import { ALPHA, K_BUCKET_SIZE } from './consts.js';
 import { Shortlist } from './Shortlist.js';
 import { render } from 'prettyjson';
 import { Storage } from './Storage.js';
@@ -26,7 +25,21 @@ export type FindValueResponse =
   | { value: string; found: true }
   | { nodes: Contact[]; found: false };
 
+export type NodeConfig = {
+  alpha: number;
+  kBucketSize: number;
+  idBits: number;
+  dataExpirationMs: number;
+  republishIntervalMs: number;
+};
+
+export type NodeOptions = {
+  config: NodeConfig;
+  self: Contact;
+};
+
 export class Node {
+  private readonly config: NodeConfig;
   private readonly app = new Hono();
   httpServer?: ServerType;
   readonly self: Contact;
@@ -39,12 +52,23 @@ export class Node {
     }
   }
 
-  constructor(opts: { self: Contact }) {
+  constructor(opts: NodeOptions) {
     this.self = opts.self;
+    this.config = opts.config;
 
-    this.routingTable = new RoutingTable({ self: this.self });
+    this.routingTable = new RoutingTable({
+      self: this.self,
+      config: {
+        idBits: this.config.idBits,
+        kBucketSize: this.config.kBucketSize,
+      },
+    });
 
     this.storage = new Storage({
+      config: {
+        dataExpirationMs: this.config.dataExpirationMs,
+        republishIntervalMs: this.config.republishIntervalMs,
+      },
       republishCallback: this._doIterativeStore.bind(this),
     });
 
@@ -236,14 +260,14 @@ export class Node {
     const shortlist = new Shortlist({ targetId, self: this.self });
     const initialContacts = this.routingTable.findClosest(
       targetId,
-      K_BUCKET_SIZE,
+      this.config.kBucketSize,
     );
     shortlist.addMany(initialContacts);
 
     let loop = 0; // Loop protection
     while (loop++ < 20) {
       // 2. Get ALPHA closest, unqueried nodes from the shortlist
-      const nodesToQuery = shortlist.getNodesToQuery(ALPHA);
+      const nodesToQuery = shortlist.getNodesToQuery(this.config.alpha);
 
       // 3. Stop condition: No one left to ask
       if (nodesToQuery.length === 0) {
@@ -280,7 +304,7 @@ export class Node {
     }
 
     // 8. Loop finished, return the K-closest from the list
-    const finalNodes = shortlist.getFinalResults(K_BUCKET_SIZE);
+    const finalNodes = shortlist.getFinalResults(this.config.kBucketSize);
     this._debug('IterativeFindNode', {
       nodesCount: finalNodes.length,
       status: 'found',
@@ -333,7 +357,10 @@ export class Node {
 
     // 1. Initialize the Shortlist
     const shortlist = new Shortlist({ targetId: key, self: this.self });
-    const initialContacts = this.routingTable.findClosest(key, K_BUCKET_SIZE);
+    const initialContacts = this.routingTable.findClosest(
+      key,
+      this.config.kBucketSize,
+    );
     shortlist.addMany(initialContacts);
 
     this._debug('IterativeFindValue', { initialContacts });
@@ -341,7 +368,7 @@ export class Node {
     let loop = 0;
     while (loop++ < 20) {
       // 2. Get nodes to query
-      const nodesToQuery = shortlist.getNodesToQuery(ALPHA);
+      const nodesToQuery = shortlist.getNodesToQuery(this.config.alpha);
 
       // 3. Stop condition: No one left
       if (nodesToQuery.length === 0) {
@@ -397,7 +424,7 @@ export class Node {
       status: 'not found',
     });
 
-    const finalNodes = shortlist.getFinalResults(K_BUCKET_SIZE);
+    const finalNodes = shortlist.getFinalResults(this.config.kBucketSize);
     return { value: null, nodes: finalNodes };
   }
 

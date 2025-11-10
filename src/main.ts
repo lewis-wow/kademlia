@@ -1,10 +1,17 @@
 #!/usr/bin/env tsx
-import { Node } from './Node.js';
-import { createContactFromAddress } from './utils.js';
+import { Node } from './lib/Node.js';
 import getPort from 'get-port';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { Repl } from './Repl.js';
+import {
+  ALPHA,
+  DATA_EXPIRATION_MS,
+  ID_BITS,
+  K_BUCKET_SIZE,
+  REPUBLISH_INTERVAL_MS,
+} from './consts.js';
+import { createContactFromAddress } from './utils.js';
 
 const SCRIPT_NAME = 'kademlia-node';
 
@@ -29,6 +36,16 @@ const self = createContactFromAddress({
   port: argv.port ?? (await getPort()),
 });
 
-const node = new Node({ self });
+const node = new Node({
+  self,
+  config: {
+    alpha: ALPHA,
+    kBucketSize: K_BUCKET_SIZE,
+    idBits: ID_BITS,
+    republishIntervalMs: REPUBLISH_INTERVAL_MS,
+    dataExpirationMs: DATA_EXPIRATION_MS,
+  },
+});
+
 const repl = new Repl({ node });
 repl.start();

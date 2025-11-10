@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { Shortlist } from '../../src/Shortlist.js';
-import { Contact } from '../../src/types.js';
+import { Shortlist } from '../../src/lib/Shortlist.js';
+import { Contact } from '../../src/lib/types.js';
 import { sha1 } from '../../src/utils.js';
 
 const createContact = (id: string): Contact => ({

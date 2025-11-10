@@ -1,5 +1,5 @@
 import { Contact, NodeId } from './types.js';
-import { xorDistance } from './utils.js';
+import { xorDistance } from './xorDistance.js';
 
 type LookupContact = {
   contact: Contact;

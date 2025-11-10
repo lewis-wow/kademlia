@@ -1,17 +1,30 @@
-import { ID_BITS, K_BUCKET_SIZE } from './consts.js';
 import { KBucket } from './KBucket.js';
 import { Contact } from './types.js';
-import { xorDistance } from './utils.js';
+import { xorDistance } from './xorDistance.js';
+
+export type RoutingTableConfig = {
+  idBits: number;
+  kBucketSize: number;
+};
+
+export type RoutingTableOptions = {
+  config: RoutingTableConfig;
+  self: Contact;
+};
 
 export class RoutingTable {
   private readonly self: Contact;
+  private readonly config: RoutingTableConfig;
   private readonly buckets: KBucket[] = [];
 
-  constructor(opts: { self: Contact }) {
+  constructor(opts: RoutingTableOptions) {
     this.self = opts.self;
+    this.config = opts.config;
 
-    for (let i = 0; i < ID_BITS; i++) {
-      this.buckets.push(new KBucket());
+    for (let i = 0; i < this.config.idBits; i++) {
+      this.buckets.push(
+        new KBucket({ config: { kBucketSize: this.config.kBucketSize } }),
+      );
     }
   }
 
@@ -45,7 +58,7 @@ export class RoutingTable {
 
     const index = this._getBucketIndex(contact);
 
-    if (index < 0 || index > ID_BITS) {
+    if (index < 0 || index > this.config.idBits) {
       console.warn(`Contact index (${index}) is out of allowed indexes.`);
       return;
     }
@@ -53,7 +66,10 @@ export class RoutingTable {
     this.buckets[index].add(contact);
   }
 
-  findClosest(targetId: string, count: number = K_BUCKET_SIZE): Contact[] {
+  findClosest(
+    targetId: string,
+    count: number = this.config.kBucketSize,
+  ): Contact[] {
     const allContacts: Contact[] = [];
     this.buckets.forEach((bucket) => {
       allContacts.push(...bucket.getContacts());

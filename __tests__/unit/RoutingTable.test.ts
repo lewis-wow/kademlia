@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { RoutingTable } from '../../src/RoutingTable.js';
-import { Contact } from '../../src/types.js';
+import { RoutingTable } from '../../src/lib/RoutingTable.js';
+import { Contact } from '../../src/lib/types.js';
 import { ID_BITS, K_BUCKET_SIZE } from '../../src/consts.js';
 import { sha1 } from '../../src/utils.js';
 

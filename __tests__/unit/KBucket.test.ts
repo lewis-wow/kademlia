@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { KBucket } from '../../src/KBucket.js';
-import { Contact } from '../../src/types.js';
+import { KBucket } from '../../src/lib/KBucket.js';
+import { Contact } from '../../src/lib/types.js';
 import { K_BUCKET_SIZE } from '../../src/consts.js';
 
 describe('KBucket', () => {

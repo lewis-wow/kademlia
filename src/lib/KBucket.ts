@@ -1,8 +1,20 @@
-import { K_BUCKET_SIZE } from './consts.js';
 import { Contact } from './types.js';
 
+export type KBucketConfig = {
+  kBucketSize: number;
+};
+
+export type KBucketOptions = {
+  config: KBucketConfig;
+};
+
 export class KBucket {
+  private readonly config: KBucketConfig;
   private contacts: Contact[] = [];
+
+  constructor(opts: KBucketOptions) {
+    this.config = opts.config;
+  }
 
   add(contact: Contact): void {
     const existingIndex = this.contacts.findIndex(
@@ -15,7 +27,7 @@ export class KBucket {
       return;
     }
 
-    if (this.contacts.length < K_BUCKET_SIZE) {
+    if (this.contacts.length < this.config.kBucketSize) {
       this.contacts.push(contact);
       return;
     }
