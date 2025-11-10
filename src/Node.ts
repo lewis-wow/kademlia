@@ -279,7 +279,9 @@ export class Node {
     const closestNodes = await this.iterativeFindNode(key);
 
     if (closestNodes.length === 0) {
-      console.warn(`[Store] Found no nodes to store data on for key ${key}.`);
+      this._debug('IterativeStore', {
+        warning: `Found no nodes to store data on for key ${key}.`,
+      });
       return;
     }
 
