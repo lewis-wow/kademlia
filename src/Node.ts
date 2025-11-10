@@ -31,8 +31,10 @@ export class Node {
   private readonly routingTable: RoutingTable;
   readonly storage = new Map<string, string>();
 
-  private _log(prefix: string, obj: object): void {
-    console.log(render({ [prefix]: obj }));
+  private _debug(prefix: string, obj: object): void {
+    if (process.env.DEBUG) {
+      console.debug(render({ [prefix]: obj }));
+    }
   }
 
   constructor(opts: { self: Contact }) {
@@ -44,7 +46,7 @@ export class Node {
       const { senderContact } = await ctx.req.json<PingPayload>();
 
       this.routingTable.addContact(senderContact);
-      this._log('Ping', { senderContact });
+      this._debug('Ping', { senderContact });
 
       // Return self contact so the sender can store this node to his routing table
       return ctx.json(this.self);
@@ -54,7 +56,7 @@ export class Node {
       const { senderContact, key, value } = await ctx.req.json<StorePayload>();
 
       this.routingTable.addContact(senderContact);
-      this._log('Store', { senderContact, key, value });
+      this._debug('Store', { senderContact, key, value });
 
       this.storage.set(key, value);
 
@@ -65,7 +67,7 @@ export class Node {
       const { senderContact, targetId } = await ctx.req.json<FindNodePayload>();
 
       this.routingTable.addContact(senderContact);
-      this._log('Find node', { senderContact, targetId });
+      this._debug('Find node', { senderContact, targetId });
 
       const closest = this.routingTable.findClosest(targetId);
 
@@ -76,7 +78,7 @@ export class Node {
       const { senderContact, key } = await ctx.req.json<FindValuePayload>();
 
       this.routingTable.addContact(senderContact);
-      this._log('Find value', { senderContact, key });
+      this._debug('Find value', { senderContact, key });
 
       if (this.storage.has(key)) {
         const value = this.storage.get(key)!;
@@ -105,7 +107,7 @@ export class Node {
           port: this.self.port,
         },
         () => {
-          this._log('Listen', {
+          this._debug('Listen', {
             self: this.self,
             address: `${this.self.ip}:${this.self.port}`,
           });
@@ -212,7 +214,7 @@ export class Node {
   }
 
   public async iterativeFindNode(targetId: string): Promise<Contact[]> {
-    this._log('IterativeFindNode', { targetId });
+    this._debug('IterativeFindNode', { targetId });
 
     const shortlist = new Shortlist({ targetId, self: this.self });
     const initialContacts = this.routingTable.findClosest(
@@ -262,7 +264,7 @@ export class Node {
 
     // 8. Loop finished, return the K-closest from the list
     const finalNodes = shortlist.getFinalResults(K_BUCKET_SIZE);
-    this._log('IterativeFindNode', {
+    this._debug('IterativeFindNode', {
       nodesCount: finalNodes.length,
       status: 'found',
     });
@@ -271,7 +273,7 @@ export class Node {
   }
 
   public async iterativeStore(key: string, value: string): Promise<void> {
-    this._log('IterativeStore', { key });
+    this._debug('IterativeStore', { key });
 
     // 1. Find the k-closest nodes
     const closestNodes = await this.iterativeFindNode(key);
@@ -281,7 +283,7 @@ export class Node {
       return;
     }
 
-    this._log('IterativeStore', {
+    this._debug('IterativeStore', {
       nodesCount: closestNodes.length,
       status: 'storing',
     });
@@ -293,13 +295,13 @@ export class Node {
 
     await Promise.allSettled(storePromises);
 
-    this._log('IterativeStore', { key, status: 'finished' });
+    this._debug('IterativeStore', { key, status: 'finished' });
   }
 
   public async iterativeFindValue(
     key: string,
   ): Promise<{ value: string | null; nodes: Contact[] }> {
-    this._log('IterativeFindValue', { key });
+    this._debug('IterativeFindValue', { key });
 
     // 1. Initialize the Shortlist
     const shortlist = new Shortlist({ targetId: key, self: this.self });
@@ -334,7 +336,7 @@ export class Node {
 
           // 6a. SUCCESS: We found the value!
           if (response?.found) {
-            this._log('IterativeFindValue', {
+            this._debug('IterativeFindValue', {
               key,
               value: response.value,
               status: 'found',
@@ -360,7 +362,7 @@ export class Node {
     }
 
     // 8. Loop finished without finding the value.
-    this._log('IterativeFindValue', {
+    this._debug('IterativeFindValue', {
       key,
       status: 'not found',
     });
@@ -375,7 +377,7 @@ export class Node {
       return;
     }
 
-    this._log('Bootstrap', {
+    this._debug('Bootstrap', {
       bootstrap: bootstrapContact,
     });
 

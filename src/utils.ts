@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 import { Contact } from './types.js';
-import { render } from 'prettyjson';
 import { ID_BITS } from './consts.js';
 
 export const xorDistance = (nodeIdA: string, nodeIdB: string): bigint => {
@@ -23,10 +22,6 @@ export const trimHexToLastBits = (hexString: string, n: number): string => {
 
 export const sha1 = (value: string): string =>
   trimHexToLastBits(createHash('sha1').update(value).digest('hex'), ID_BITS);
-
-export const log = (prefix: string, obj: object): void => {
-  console.log(`[${prefix}]`, render(obj));
-};
 
 export const createContactFromAddress = (
   address: string | { ip: string; port: number },

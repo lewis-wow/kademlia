@@ -12,6 +12,10 @@ export class Repl {
     this.node = opts.node;
   }
 
+  private _log(prefix: string, obj: object): void {
+    console.log(render({ [prefix]: obj }));
+  }
+
   start(): void {
     const replServer = repl.start({
       ignoreUndefined: true,
@@ -44,30 +48,71 @@ export class Repl {
   }
 
   private _store(key: string | number, value: string): void {
-    void this.node.iterativeStore(sha1(key.toString()), value);
+    const hexKey = sha1(key.toString());
+
+    this.node.storage.set(hexKey, value);
+
+    this.node.iterativeStore(hexKey, value).then(() => {
+      this._log('Store', {
+        key,
+        value,
+      });
+    });
   }
 
   private _get(key: string | number): void {
-    void this.node.iterativeFindValue(sha1(key.toString()));
+    const hexKey = sha1(key.toString());
+
+    if (this.node.storage.has(hexKey)) {
+      const value = this.node.storage.get(hexKey)!;
+      this._log('Get', {
+        key,
+        value,
+      });
+
+      return;
+    }
+
+    this.node.iterativeFindValue(hexKey).then(({ value }) => {
+      this._log('Get', {
+        key,
+        value,
+      });
+    });
   }
 
   private _bootstrap(address: string): void {
-    void this.node.bootstrap(createContactFromAddress(address));
+    const contact = createContactFromAddress(address);
+
+    this.node.bootstrap(contact).then(() => {
+      this._log('Bootstrap', {
+        contact,
+      });
+    });
   }
 
   private _ping(address: string): void {
-    void this.node.ping(createContactFromAddress(address));
+    const contact = createContactFromAddress(address);
+
+    this.node.ping(createContactFromAddress(address)).then((value) => {
+      this._log('Ping', {
+        contact,
+        pong: value,
+      });
+    });
   }
 
   private _storage(key?: string | number): void {
     if (key === undefined) {
-      console.log(render({ storage: Object.fromEntries(this.node.storage) }));
+      this._log('Storage', Object.fromEntries(this.node.storage));
       return;
     }
 
-    console.log(
-      render({ [key]: this.node.storage.get(sha1(key.toString())) ?? null }),
-    );
+    const hexKey = sha1(key.toString());
+
+    this._log('Storage', {
+      [key]: this.node.storage.get(hexKey) ?? null,
+    });
   }
 
   private _clear(): void {
