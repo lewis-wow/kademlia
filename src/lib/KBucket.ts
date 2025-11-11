@@ -1,23 +1,20 @@
-import { Contact, NodeId } from './types.js';
-
-export type KBucketConfig = {
-  kBucketSize: number;
-};
+import { Contact } from './dto/ContactSchema.js';
+import { Key } from './types.js';
 
 export type KBucketOptions = {
-  config: KBucketConfig;
+  kBucketSize: number;
   rangeFrom: bigint;
   rangeTo: bigint;
 };
 
 export class KBucket {
-  private readonly config: KBucketConfig;
+  private readonly kBucketSize: number;
   private contacts: Contact[] = [];
   readonly rangeFrom: bigint;
   readonly rangeTo: bigint;
 
   constructor(opts: KBucketOptions) {
-    this.config = opts.config;
+    this.kBucketSize = opts.kBucketSize;
     this.rangeFrom = opts.rangeFrom;
     this.rangeTo = opts.rangeTo;
   }
@@ -26,13 +23,13 @@ export class KBucket {
     const midpoint = (this.rangeFrom + this.rangeTo) / BigInt(2);
 
     const leftBucket = new KBucket({
-      config: this.config,
+      kBucketSize: this.kBucketSize,
       rangeFrom: this.rangeFrom,
       rangeTo: midpoint,
     });
 
     const rightBucket = new KBucket({
-      config: this.config,
+      kBucketSize: this.kBucketSize,
       rangeFrom: midpoint,
       rangeTo: this.rangeTo,
     });
@@ -60,7 +57,7 @@ export class KBucket {
       return true;
     }
 
-    if (this.contacts.length < this.config.kBucketSize) {
+    if (this.contacts.length < this.kBucketSize) {
       this.contacts.push(contact);
       return true;
     }
@@ -72,7 +69,7 @@ export class KBucket {
     return [...this.contacts];
   }
 
-  inRange(nodeId: NodeId): boolean {
+  inRange(nodeId: Key): boolean {
     return nodeId >= this.rangeFrom && nodeId < this.rangeTo;
   }
 }

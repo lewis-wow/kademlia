@@ -1,15 +1,5 @@
-import { createHash } from 'node:crypto';
-import type { Contact } from './lib/types.js';
-import { ID_BITS } from './lib/consts.js';
-
-export const hash = (value: string): string => {
-  const hash = createHash('sha256').update(value).digest('hex');
-  const bigIntHash = BigInt(`0x${hash}`);
-
-  const result = bigIntHash % BigInt(ID_BITS);
-
-  return result.toString(16);
-};
+import { Contact } from './lib/dto/ContactSchema.js';
+import { hash } from './lib/hash.js';
 
 export const createContactFromAddress = (
   address: string | { ip: string; port: number },

@@ -38,13 +38,11 @@ const self = createContactFromAddress({
 
 const node = new Node({
   self,
-  config: {
-    alpha: ALPHA,
-    kBucketSize: K_BUCKET_SIZE,
-    idBits: ID_BITS,
-    republishIntervalMs: REPUBLISH_INTERVAL_MS,
-    dataExpirationMs: DATA_EXPIRATION_MS,
-  },
+  alpha: ALPHA,
+  kBucketSize: K_BUCKET_SIZE,
+  idBits: ID_BITS,
+  republishIntervalMs: REPUBLISH_INTERVAL_MS,
+  dataExpirationMs: DATA_EXPIRATION_MS,
 });
 
 const repl = new Repl({ node });

@@ -1,6 +1,6 @@
-import { NodeId } from './types.js';
+import { Key } from './types.js';
 
-export const xorDistance = (nodeIdA: NodeId, nodeIdB: NodeId): bigint => {
+export const xorDistance = (nodeIdA: Key, nodeIdB: Key): bigint => {
   const distance = nodeIdA ^ nodeIdB;
 
   return distance;

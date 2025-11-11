@@ -1,4 +1,5 @@
-import { Contact, NodeId } from './types.js';
+import { Contact } from './dto/ContactSchema.js';
+import { Key } from './types.js';
 import { xorDistance } from './xorDistance.js';
 
 type LookupContact = {
@@ -8,12 +9,12 @@ type LookupContact = {
 };
 
 export class Shortlist {
-  private readonly targetId: NodeId;
+  private readonly targetId: Key;
   private readonly self: Contact;
 
-  private readonly nodes = new Map<NodeId, LookupContact>();
+  private readonly nodes = new Map<Key, LookupContact>();
 
-  constructor(opts: { targetId: NodeId; self: Contact }) {
+  constructor(opts: { targetId: Key; self: Contact }) {
     this.targetId = opts.targetId;
     this.self = opts.self;
   }

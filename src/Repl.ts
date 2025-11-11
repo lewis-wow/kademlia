@@ -1,7 +1,8 @@
 import type { Node } from './lib/Node.js';
 import repl from 'node:repl';
 import { render } from 'prettyjson';
-import { createContactFromAddress, hash } from './utils.js';
+import { createContactFromAddress } from './utils.js';
+import { hash } from './lib/hash.js';
 
 export class Repl {
   private readonly node: Node;
@@ -22,7 +23,6 @@ export class Repl {
 
     replServer.context.start = this._start.bind(this);
     replServer.context.stop = this._stop.bind(this);
-    replServer.context.lookup = this._lookup.bind(this);
     replServer.context.store = this._store.bind(this);
     replServer.context.get = this._get.bind(this);
     replServer.context.bootstrap = this._bootstrap.bind(this);
@@ -49,14 +49,6 @@ export class Repl {
     this._log('Stop', {
       self: this.node.self,
       address: `${this.node.self.ip}:${this.node.self.port}`,
-    });
-  }
-
-  private _lookup(targetId: string): void {
-    this.node.iterativeFindNode(targetId).then((contacts) => {
-      this._log('Find node', {
-        contacts,
-      });
     });
   }
 

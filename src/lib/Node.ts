@@ -1,50 +1,27 @@
 import { Hono } from 'hono';
 import { RoutingTable } from './RoutingTable.js';
-import { Contact, NodeId, RpcPayload } from './types.js';
 import { serve, ServerType } from '@hono/node-server';
 import { Shortlist } from './Shortlist.js';
 import { render } from 'prettyjson';
 import { Storage } from './Storage.js';
 import { K_BUCKET_SIZE } from './consts.js';
 import { sValidator } from '@hono/standard-validator';
+import { Contact } from './dto/ContactSchema.js';
 import {
-  ContactSchema,
-  RpcPayloadSchema,
-  StringToBigIntSchema,
-} from './schemas.js';
-import z from 'zod';
+  FindNodePayloadSchema,
+  FindNodeResponseSchema,
+  FindValuePayloadSchema,
+  FindValueResponse,
+  FindValueResponseSchema,
+  PingPayloadSchema,
+  PingResponseSchema,
+  StorePayloadSchema,
+  StoreResponseSchema,
+} from './dto/RpcPayloadSchema.js';
+import { Key } from './types.js';
 
-const PingPayloadSchema = RpcPayloadSchema.extend({});
-const PingResponseSchema = ContactSchema.extend({});
-
-const StorePayloadSchema = RpcPayloadSchema.extend({
-  key: StringToBigIntSchema,
-  value: z.string(),
-});
-const StoreResponseSchema = z.object({
-  ok: z.boolean(),
-});
-
-export const FindNodePayloadSchema = RpcPayloadSchema.extend({
-  targetId: StringToBigIntSchema,
-});
-const FindNodeResponseSchema = z.array(ContactSchema);
-
-export const FindValuePayloadSchema = RpcPayloadSchema.extend({
-  key: StringToBigIntSchema,
-});
-const FindValueResponseSchema = z.union([
-  z.object({
-    value: z.string(),
-    found: z.literal(true),
-  }),
-  z.object({
-    nodes: z.array(ContactSchema),
-    found: z.literal(false),
-  }),
-]);
-
-export type NodeConfig = {
+export type NodeOptions = {
+  self: Contact;
   alpha: number;
   kBucketSize: number;
   idBits: number;
@@ -52,18 +29,17 @@ export type NodeConfig = {
   republishIntervalMs: number;
 };
 
-export type NodeOptions = {
-  config: NodeConfig;
-  self: Contact;
-};
-
 export class Node {
-  private readonly config: NodeConfig;
   private readonly app = new Hono();
   httpServer?: ServerType;
-  readonly self: Contact;
   readonly routingTable: RoutingTable;
   readonly storage: Storage;
+
+  readonly self: Contact;
+  readonly alpha: number;
+  readonly kBucketSize: number;
+  readonly dataExpirationMs: number;
+  readonly republishIntervalMs: number;
 
   private _debug(prefix: string, obj: object): void {
     if (process.env.DEBUG) {
@@ -73,7 +49,10 @@ export class Node {
 
   constructor(opts: NodeOptions) {
     this.self = opts.self;
-    this.config = opts.config;
+    this.alpha = opts.alpha;
+    this.kBucketSize = opts.kBucketSize;
+    this.dataExpirationMs = opts.dataExpirationMs;
+    this.republishIntervalMs = opts.republishIntervalMs;
 
     this.routingTable = new RoutingTable({
       self: this.self,
@@ -81,8 +60,8 @@ export class Node {
 
     this.storage = new Storage({
       config: {
-        dataExpirationMs: this.config.dataExpirationMs,
-        republishIntervalMs: this.config.republishIntervalMs,
+        dataExpirationMs: this.dataExpirationMs,
+        republishIntervalMs: this.republishIntervalMs,
       },
       republishCallback: this._doIterativeStore.bind(this),
     });
@@ -96,7 +75,6 @@ export class Node {
         this.routingTable.addContact(senderContact);
         this._debug('Ping', { senderContact });
 
-        // Return self contact so the sender can store this node to his routing table
         return ctx.json(PingResponseSchema.encode(this.self));
       },
     );
@@ -247,7 +225,7 @@ export class Node {
     return response !== null;
   }
 
-  async store(contact: Contact, key: NodeId, value: string): Promise<boolean> {
+  async store(contact: Contact, key: Key, value: string): Promise<boolean> {
     const payload = StorePayloadSchema.encode({
       senderContact: this.self,
       key,
@@ -261,7 +239,7 @@ export class Node {
     return response?.ok === true;
   }
 
-  async findNode(contact: Contact, targetId: NodeId): Promise<Contact[]> {
+  async findNode(contact: Contact, targetId: Key): Promise<Contact[]> {
     const payload = FindNodePayloadSchema.encode({
       senderContact: this.self,
       targetId,
@@ -274,8 +252,10 @@ export class Node {
     return response ?? [];
   }
 
-  // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-  async findValue(contact: Contact, key: NodeId) {
+  async findValue(
+    contact: Contact,
+    key: Key,
+  ): Promise<FindValueResponse | null> {
     const payload = FindValuePayloadSchema.encode({
       senderContact: this.self,
       key,
@@ -288,20 +268,20 @@ export class Node {
     return response;
   }
 
-  public async iterativeFindNode(targetId: NodeId): Promise<Contact[]> {
+  public async iterativeFindNode(targetId: Key): Promise<Contact[]> {
     this._debug('IterativeFindNode', { targetId });
 
     const shortlist = new Shortlist({ targetId, self: this.self });
     const initialContacts = this.routingTable.findClosest(
       targetId,
-      this.config.kBucketSize,
+      this.kBucketSize,
     );
     shortlist.addMany(initialContacts);
 
     let loop = 0; // Loop protection
     while (loop++ < 20) {
       // 2. Get ALPHA closest, unqueried nodes from the shortlist
-      const nodesToQuery = shortlist.getNodesToQuery(this.config.alpha);
+      const nodesToQuery = shortlist.getNodesToQuery(this.alpha);
 
       // 3. Stop condition: No one left to ask
       if (nodesToQuery.length === 0) {
@@ -338,7 +318,7 @@ export class Node {
     }
 
     // 8. Loop finished, return the K-closest from the list
-    const finalNodes = shortlist.getFinalResults(this.config.kBucketSize);
+    const finalNodes = shortlist.getFinalResults(this.kBucketSize);
     this._debug('IterativeFindNode', {
       nodesCount: finalNodes.length,
       status: 'found',
@@ -347,7 +327,7 @@ export class Node {
     return finalNodes;
   }
 
-  private async _doIterativeStore(key: NodeId, value: string): Promise<void> {
+  private async _doIterativeStore(key: Key, value: string): Promise<void> {
     // 1. Find the k-closest nodes
     const closestNodes = await this.iterativeFindNode(key);
 
@@ -371,7 +351,7 @@ export class Node {
     await Promise.allSettled(storePromises);
   }
 
-  public async iterativeStore(key: string, value: string): Promise<void> {
+  public async iterativeStore(key: Key, value: string): Promise<void> {
     this._debug('IterativeStore', { key, publisher: 'self' });
 
     // Tell the storage module this is "original" data
@@ -385,7 +365,7 @@ export class Node {
   }
 
   public async iterativeFindValue(
-    key: string,
+    key: Key,
   ): Promise<{ value: string | null; nodes: Contact[] }> {
     this._debug('IterativeFindValue', { key });
 
@@ -393,7 +373,7 @@ export class Node {
     const shortlist = new Shortlist({ targetId: key, self: this.self });
     const initialContacts = this.routingTable.findClosest(
       key,
-      this.config.kBucketSize,
+      this.kBucketSize,
     );
     shortlist.addMany(initialContacts);
 
@@ -402,7 +382,7 @@ export class Node {
     let loop = 0;
     while (loop++ < 20) {
       // 2. Get nodes to query
-      const nodesToQuery = shortlist.getNodesToQuery(this.config.alpha);
+      const nodesToQuery = shortlist.getNodesToQuery(this.alpha);
 
       // 3. Stop condition: No one left
       if (nodesToQuery.length === 0) {
@@ -458,7 +438,7 @@ export class Node {
       status: 'not found',
     });
 
-    const finalNodes = shortlist.getFinalResults(this.config.kBucketSize);
+    const finalNodes = shortlist.getFinalResults(this.kBucketSize);
     return { value: null, nodes: finalNodes };
   }
 

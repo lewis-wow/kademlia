@@ -1,5 +1,6 @@
+import { Contact } from './dto/ContactSchema.js';
 import { KBucket } from './KBucket.js';
-import { Contact, NodeId } from './types.js';
+import { Key } from './types.js';
 import { xorDistance } from './xorDistance.js';
 
 export type RoutingTableOptions = {
@@ -52,7 +53,7 @@ export class RoutingTable {
     }
   }
 
-  findClosest(targetId: NodeId, count: number): Contact[] {
+  findClosest(targetId: Key, count: number): Contact[] {
     const allContacts: Contact[] = [];
     this.buckets.forEach((bucket) => {
       allContacts.push(...bucket.getContacts());
