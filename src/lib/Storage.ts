@@ -1,14 +1,9 @@
+import { DATA_EXPIRATION_MS, REPUBLISH_INTERVAL_MS } from './consts.js';
 import { Key } from './types.js';
 
 export type RepublishCallback = (key: Key, value: string) => Promise<void>;
 
-export type StorageConfig = {
-  dataExpirationMs: number;
-  republishIntervalMs: number;
-};
-
 export type StorageOptions = {
-  config: StorageConfig;
   republishCallback: RepublishCallback;
 };
 
@@ -18,20 +13,18 @@ export class Storage {
     { value: string; expiresAt: number }
   >();
 
-  private readonly config: StorageConfig;
   private readonly republishCallback: RepublishCallback;
   private readonly originalStorage = new Map<Key, string>();
   private interval: NodeJS.Timeout | null = null;
 
   constructor(opts: StorageOptions) {
     this.republishCallback = opts.republishCallback;
-    this.config = opts.config;
   }
 
   public setReplica(key: Key, value: string): void {
     this.replicaStorage.set(key, {
       value: value,
-      expiresAt: Date.now() + this.config.dataExpirationMs,
+      expiresAt: Date.now() + DATA_EXPIRATION_MS,
     });
   }
 
@@ -63,7 +56,7 @@ export class Storage {
     this.interval = setInterval(() => {
       this._republishData();
       this._garbageCollect();
-    }, this.config.republishIntervalMs);
+    }, REPUBLISH_INTERVAL_MS);
 
     this.interval.unref();
   }

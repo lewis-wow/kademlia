@@ -1,20 +1,18 @@
+import { K_BUCKET_SIZE } from './consts.js';
 import { Contact } from './dto/ContactSchema.js';
 import { Key } from './types.js';
 
 export type KBucketOptions = {
-  kBucketSize: number;
   rangeFrom: bigint;
   rangeTo: bigint;
 };
 
 export class KBucket {
-  private readonly kBucketSize: number;
   private contacts: Contact[] = [];
   readonly rangeFrom: bigint;
   readonly rangeTo: bigint;
 
   constructor(opts: KBucketOptions) {
-    this.kBucketSize = opts.kBucketSize;
     this.rangeFrom = opts.rangeFrom;
     this.rangeTo = opts.rangeTo;
   }
@@ -23,13 +21,11 @@ export class KBucket {
     const midpoint = (this.rangeFrom + this.rangeTo) / BigInt(2);
 
     const leftBucket = new KBucket({
-      kBucketSize: this.kBucketSize,
       rangeFrom: this.rangeFrom,
       rangeTo: midpoint,
     });
 
     const rightBucket = new KBucket({
-      kBucketSize: this.kBucketSize,
       rangeFrom: midpoint,
       rangeTo: this.rangeTo,
     });
@@ -57,7 +53,7 @@ export class KBucket {
       return true;
     }
 
-    if (this.contacts.length < this.kBucketSize) {
+    if (this.contacts.length < K_BUCKET_SIZE) {
       this.contacts.push(contact);
       return true;
     }

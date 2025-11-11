@@ -23,6 +23,7 @@
   },
   "scripts": {
     "start": "src/main.ts",
+    "start:debug": "DEBUG=true src/main.ts",
     "check-types": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run unit --config __tests__/vitest.config.ts",

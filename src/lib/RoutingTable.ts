@@ -13,6 +13,9 @@ export class RoutingTable {
 
   constructor(opts: RoutingTableOptions) {
     this.self = opts.self;
+    this.buckets = [
+      new KBucket({ rangeFrom: BigInt(0), rangeTo: BigInt(2) ** BigInt(160) }),
+    ];
   }
 
   private _splitBucket(index: number): void {

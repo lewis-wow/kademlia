@@ -4,13 +4,6 @@ import getPort from 'get-port';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { Repl } from './Repl.js';
-import {
-  ALPHA,
-  DATA_EXPIRATION_MS,
-  ID_BITS,
-  K_BUCKET_SIZE,
-  REPUBLISH_INTERVAL_MS,
-} from './lib/consts.js';
 import { createContactFromAddress } from './utils.js';
 
 const SCRIPT_NAME = 'kademlia-node';
@@ -38,11 +31,6 @@ const self = createContactFromAddress({
 
 const node = new Node({
   self,
-  alpha: ALPHA,
-  kBucketSize: K_BUCKET_SIZE,
-  idBits: ID_BITS,
-  republishIntervalMs: REPUBLISH_INTERVAL_MS,
-  dataExpirationMs: DATA_EXPIRATION_MS,
 });
 
 const repl = new Repl({ node });
