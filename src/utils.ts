@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { Contact } from './lib/types.js';
-import { ID_BITS } from './consts.js';
+import { ID_BITS } from './lib/consts.js';
 
 export const hash = (value: string): string => {
   const hash = createHash('sha256').update(value).digest('hex');

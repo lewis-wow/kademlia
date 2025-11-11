@@ -10,7 +10,7 @@ import {
   ID_BITS,
   K_BUCKET_SIZE,
   REPUBLISH_INTERVAL_MS,
-} from './consts.js';
+} from './lib/consts.js';
 import { createContactFromAddress } from './utils.js';
 
 const SCRIPT_NAME = 'kademlia-node';

@@ -1,29 +1,48 @@
 import { Hono } from 'hono';
 import { RoutingTable } from './RoutingTable.js';
-import { Contact, RpcPayload } from './types.js';
+import { Contact, NodeId, RpcPayload } from './types.js';
 import { serve, ServerType } from '@hono/node-server';
 import { Shortlist } from './Shortlist.js';
 import { render } from 'prettyjson';
 import { Storage } from './Storage.js';
+import { K_BUCKET_SIZE } from './consts.js';
+import { sValidator } from '@hono/standard-validator';
+import {
+  ContactSchema,
+  RpcPayloadSchema,
+  StringToBigIntSchema,
+} from './schemas.js';
+import z from 'zod';
 
-export type PingPayload = RpcPayload;
+const PingPayloadSchema = RpcPayloadSchema.extend({});
+const PingResponseSchema = ContactSchema.extend({});
 
-export type StorePayload = RpcPayload<{
-  key: string;
-  value: string;
-}>;
+const StorePayloadSchema = RpcPayloadSchema.extend({
+  key: StringToBigIntSchema,
+  value: z.string(),
+});
+const StoreResponseSchema = z.object({
+  ok: z.boolean(),
+});
 
-export type FindNodePayload = RpcPayload<{
-  targetId: string;
-}>;
+export const FindNodePayloadSchema = RpcPayloadSchema.extend({
+  targetId: StringToBigIntSchema,
+});
+const FindNodeResponseSchema = z.array(ContactSchema);
 
-export type FindValuePayload = RpcPayload<{
-  key: string;
-}>;
-
-export type FindValueResponse =
-  | { value: string; found: true }
-  | { nodes: Contact[]; found: false };
+export const FindValuePayloadSchema = RpcPayloadSchema.extend({
+  key: StringToBigIntSchema,
+});
+const FindValueResponseSchema = z.union([
+  z.object({
+    value: z.string(),
+    found: z.literal(true),
+  }),
+  z.object({
+    nodes: z.array(ContactSchema),
+    found: z.literal(false),
+  }),
+]);
 
 export type NodeConfig = {
   alpha: number;
@@ -58,10 +77,6 @@ export class Node {
 
     this.routingTable = new RoutingTable({
       self: this.self,
-      config: {
-        idBits: this.config.idBits,
-        kBucketSize: this.config.kBucketSize,
-      },
     });
 
     this.storage = new Storage({
@@ -72,61 +87,84 @@ export class Node {
       republishCallback: this._doIterativeStore.bind(this),
     });
 
-    this.app.post('/ping', async (ctx) => {
-      const { senderContact } = await ctx.req.json<PingPayload>();
+    this.app.post(
+      '/ping',
+      sValidator('json', PingPayloadSchema),
+      async (ctx) => {
+        const { senderContact } = ctx.req.valid('json');
 
-      this.routingTable.addContact(senderContact);
-      this._debug('Ping', { senderContact });
+        this.routingTable.addContact(senderContact);
+        this._debug('Ping', { senderContact });
 
-      // Return self contact so the sender can store this node to his routing table
-      return ctx.json(this.self);
-    });
+        // Return self contact so the sender can store this node to his routing table
+        return ctx.json(PingResponseSchema.encode(this.self));
+      },
+    );
 
-    this.app.post('/store', async (ctx) => {
-      const { senderContact, key, value } = await ctx.req.json<StorePayload>();
+    this.app.post(
+      '/store',
+      sValidator('json', StorePayloadSchema),
+      async (ctx) => {
+        const { senderContact, key, value } = ctx.req.valid('json');
 
-      this.routingTable.addContact(senderContact);
-      this._debug('Store', { senderContact, key, value });
+        this.routingTable.addContact(senderContact);
+        this._debug('Store', { senderContact, key, value });
 
-      this.storage.setReplica(key, value);
+        this.storage.setReplica(key, value);
 
-      return ctx.json({ ok: true });
-    });
+        return ctx.json(StoreResponseSchema.encode({ ok: true }));
+      },
+    );
 
-    this.app.post('/find-node', async (ctx) => {
-      const { senderContact, targetId } = await ctx.req.json<FindNodePayload>();
+    this.app.post(
+      '/find-node',
+      sValidator('json', FindNodePayloadSchema),
+      async (ctx) => {
+        const { senderContact, targetId } = ctx.req.valid('json');
 
-      this.routingTable.addContact(senderContact);
-      this._debug('Find node', { senderContact, targetId });
+        this.routingTable.addContact(senderContact);
+        this._debug('Find node', { senderContact, targetId });
 
-      const closest = this.routingTable.findClosest(targetId);
+        const closest = this.routingTable.findClosest(
+          BigInt(targetId),
+          K_BUCKET_SIZE,
+        );
 
-      return ctx.json(closest);
-    });
+        return ctx.json(FindNodeResponseSchema.encode(closest));
+      },
+    );
 
-    this.app.post('/find-value', async (ctx) => {
-      const { senderContact, key } = await ctx.req.json<FindValuePayload>();
+    this.app.post(
+      '/find-value',
+      sValidator('json', FindValuePayloadSchema),
+      async (ctx) => {
+        const { senderContact, key } = ctx.req.valid('json');
 
-      this.routingTable.addContact(senderContact);
-      this._debug('Find value', { senderContact, key });
+        this.routingTable.addContact(senderContact);
+        this._debug('Find value', { senderContact, key });
 
-      const value = this.storage.get(key);
-      if (value === null) {
-        const value = this.storage.get(key)!;
+        const value = this.storage.get(key);
+        if (value === null) {
+          const value = this.storage.get(key)!;
 
-        return ctx.json<FindValueResponse>({
-          value: value,
-          found: true,
-        });
-      }
+          return ctx.json(
+            FindValueResponseSchema.encode({
+              value: value,
+              found: true,
+            }),
+          );
+        }
 
-      const closest = this.routingTable.findClosest(key);
+        const closest = this.routingTable.findClosest(key, K_BUCKET_SIZE);
 
-      return ctx.json<FindValueResponse>({
-        nodes: closest,
-        found: false,
-      });
-    });
+        return ctx.json(
+          FindValueResponseSchema.encode({
+            nodes: closest,
+            found: false,
+          }),
+        );
+      },
+    );
   }
 
   listen(): Promise<ServerType> {
@@ -198,63 +236,59 @@ export class Node {
   }
 
   async ping(contact: Contact): Promise<boolean> {
-    const payload: PingPayload = {
+    const payload = PingPayloadSchema.encode({
       senderContact: this.self,
-    };
+    });
 
-    const response = await this._sendRequest<Contact>(
-      contact,
-      '/ping',
-      payload,
+    const response = PingResponseSchema.parse(
+      await this._sendRequest(contact, '/ping', payload),
     );
 
     return response !== null;
   }
 
-  async store(contact: Contact, key: string, value: string): Promise<boolean> {
-    const payload: StorePayload = {
+  async store(contact: Contact, key: NodeId, value: string): Promise<boolean> {
+    const payload = StorePayloadSchema.encode({
       senderContact: this.self,
       key,
       value,
-    };
+    });
 
-    const response = await this._sendRequest<{ status: string }>(
-      contact,
-      '/store',
-      payload,
+    const response = StoreResponseSchema.parse(
+      await this._sendRequest(contact, '/store', payload),
     );
 
-    return response?.status === 'ok';
+    return response?.ok === true;
   }
 
-  async findNode(contact: Contact, targetId: string): Promise<Contact[]> {
-    const payload: FindNodePayload = { senderContact: this.self, targetId };
+  async findNode(contact: Contact, targetId: NodeId): Promise<Contact[]> {
+    const payload = FindNodePayloadSchema.encode({
+      senderContact: this.self,
+      targetId,
+    });
 
-    const response = await this._sendRequest<Contact[]>(
-      contact,
-      '/find-node',
-      payload,
+    const response = FindNodeResponseSchema.parse(
+      await this._sendRequest(contact, '/find-node', payload),
     );
 
     return response ?? [];
   }
 
-  async findValue(
-    contact: Contact,
-    key: string,
-  ): Promise<FindValueResponse | null> {
-    const payload: FindValuePayload = { senderContact: this.self, key };
+  // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+  async findValue(contact: Contact, key: NodeId) {
+    const payload = FindValuePayloadSchema.encode({
+      senderContact: this.self,
+      key,
+    });
 
-    const response = await this._sendRequest<FindValueResponse>(
-      contact,
-      '/find-value',
-      payload,
+    const response = FindValueResponseSchema.parse(
+      await this._sendRequest(contact, '/find-value', payload),
     );
 
     return response;
   }
 
-  public async iterativeFindNode(targetId: string): Promise<Contact[]> {
+  public async iterativeFindNode(targetId: NodeId): Promise<Contact[]> {
     this._debug('IterativeFindNode', { targetId });
 
     const shortlist = new Shortlist({ targetId, self: this.self });
@@ -313,7 +347,7 @@ export class Node {
     return finalNodes;
   }
 
-  private async _doIterativeStore(key: string, value: string): Promise<void> {
+  private async _doIterativeStore(key: NodeId, value: string): Promise<void> {
     // 1. Find the k-closest nodes
     const closestNodes = await this.iterativeFindNode(key);
 

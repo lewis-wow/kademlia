@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { KBucket } from '../../src/lib/KBucket.js';
 import { Contact } from '../../src/lib/types.js';
-import { K_BUCKET_SIZE } from '../../src/consts.js';
+import { K_BUCKET_SIZE } from '../../src/lib/consts.js';
 
 describe('KBucket', () => {
   let kBucket: KBucket;

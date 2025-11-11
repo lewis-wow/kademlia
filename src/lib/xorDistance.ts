@@ -1,8 +1,7 @@
-export const xorDistance = (nodeIdA: string, nodeIdB: string): bigint => {
-  const selfBigInt = BigInt('0x' + nodeIdA);
-  const contactBigInt = BigInt('0x' + nodeIdB);
+import { NodeId } from './types.js';
 
-  const distance = selfBigInt ^ contactBigInt;
+export const xorDistance = (nodeIdA: NodeId, nodeIdB: NodeId): bigint => {
+  const distance = nodeIdA ^ nodeIdB;
 
   return distance;
 };

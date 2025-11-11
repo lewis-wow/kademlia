@@ -8,12 +8,12 @@ type LookupContact = {
 };
 
 export class Shortlist {
-  private readonly targetId: string;
+  private readonly targetId: NodeId;
   private readonly self: Contact;
 
   private readonly nodes = new Map<NodeId, LookupContact>();
 
-  constructor(opts: { targetId: string; self: Contact }) {
+  constructor(opts: { targetId: NodeId; self: Contact }) {
     this.targetId = opts.targetId;
     this.self = opts.self;
   }

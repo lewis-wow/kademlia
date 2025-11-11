@@ -1,4 +1,4 @@
-export type NodeId = string;
+export type NodeId = bigint;
 
 export type Contact = {
   nodeId: NodeId;

@@ -1,4 +1,4 @@
-import { Contact } from './types.js';
+import { Contact, NodeId } from './types.js';
 
 export type KBucketConfig = {
   kBucketSize: number;
@@ -6,17 +6,50 @@ export type KBucketConfig = {
 
 export type KBucketOptions = {
   config: KBucketConfig;
+  rangeFrom: bigint;
+  rangeTo: bigint;
 };
 
 export class KBucket {
   private readonly config: KBucketConfig;
   private contacts: Contact[] = [];
+  readonly rangeFrom: bigint;
+  readonly rangeTo: bigint;
 
   constructor(opts: KBucketOptions) {
     this.config = opts.config;
+    this.rangeFrom = opts.rangeFrom;
+    this.rangeTo = opts.rangeTo;
   }
 
-  add(contact: Contact): void {
+  split(): { leftBucket: KBucket; rightBucket: KBucket } {
+    const midpoint = (this.rangeFrom + this.rangeTo) / BigInt(2);
+
+    const leftBucket = new KBucket({
+      config: this.config,
+      rangeFrom: this.rangeFrom,
+      rangeTo: midpoint,
+    });
+
+    const rightBucket = new KBucket({
+      config: this.config,
+      rangeFrom: midpoint,
+      rangeTo: this.rangeTo,
+    });
+
+    // Reassign contacts to the new buckets
+    for (const contact of this.contacts) {
+      if (contact.nodeId <= midpoint) {
+        leftBucket.add(contact);
+      } else {
+        rightBucket.add(contact);
+      }
+    }
+
+    return { leftBucket, rightBucket };
+  }
+
+  add(contact: Contact): boolean {
     const existingIndex = this.contacts.findIndex(
       (c) => c.nodeId === contact.nodeId,
     );
@@ -24,31 +57,22 @@ export class KBucket {
     if (existingIndex !== -1) {
       const existing = this.contacts.splice(existingIndex, 1)[0];
       this.contacts.push(existing);
-      return;
+      return true;
     }
 
     if (this.contacts.length < this.config.kBucketSize) {
       this.contacts.push(contact);
-      return;
+      return true;
     }
 
-    // If the bucket is full and the contact is new
-    // In a real Kademlia implementation, a "ping" mechanism would be used here.
-    // The least-recently seen contact (this.contacts[0]) would be pinged.
-    // If it responds, the new contact is ignored. If it doesn't respond, it's removed,
-    // and the new contact is added.
-    console.warn('Bucket is full, ignoring new contact.');
+    return false;
   }
 
   getContacts(): Contact[] {
     return [...this.contacts];
   }
 
-  getContact(nodeId: string): Contact | undefined {
-    return this.contacts.find((c) => c.nodeId === nodeId);
-  }
-
-  hasContact(nodeId: string): boolean {
-    return !!this.getContact(nodeId);
+  inRange(nodeId: NodeId): boolean {
+    return nodeId >= this.rangeFrom && nodeId < this.rangeTo;
   }
 }

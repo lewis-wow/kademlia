@@ -1,4 +1,6 @@
-export type RepublishCallback = (key: string, value: string) => Promise<void>;
+import { NodeId } from './types.js';
+
+export type RepublishCallback = (key: NodeId, value: string) => Promise<void>;
 
 export type StorageConfig = {
   dataExpirationMs: number;
@@ -12,13 +14,13 @@ export type StorageOptions = {
 
 export class Storage {
   private readonly replicaStorage = new Map<
-    string,
+    NodeId,
     { value: string; expiresAt: number }
   >();
 
   private readonly config: StorageConfig;
   private readonly republishCallback: RepublishCallback;
-  private readonly originalStorage = new Map<string, string>();
+  private readonly originalStorage = new Map<NodeId, string>();
   private interval: NodeJS.Timeout | null = null;
 
   constructor(opts: StorageOptions) {
@@ -26,19 +28,19 @@ export class Storage {
     this.config = opts.config;
   }
 
-  public setReplica(key: string, value: string): void {
+  public setReplica(key: NodeId, value: string): void {
     this.replicaStorage.set(key, {
       value: value,
       expiresAt: Date.now() + this.config.dataExpirationMs,
     });
   }
 
-  public setOriginal(key: string, value: string): void {
+  public setOriginal(key: NodeId, value: string): void {
     this.originalStorage.set(key, value);
     this.setReplica(key, value);
   }
 
-  public get(key: string): string | null {
+  public get(key: NodeId): string | null {
     const entry = this.replicaStorage.get(key);
 
     if (!entry) {
